@@ -352,10 +352,18 @@ with tab1:
                 hoverinfo="skip",
                 showlegend=False
             ))
+            fig.add_annotation(
+                text="Source LIDEA = outil interne",
+                xref="paper", yref="paper",
+                x=0.99, y=0.01,
+                xanchor="right", yanchor="bottom",
+                showarrow=False,
+                font=dict(size=10, color="#4A5568")
+            )
             fig.update_geos(fitbounds="locations", visible=False)
             fig.update_layout(
                 title=f"Carte thermique {annee_t2} ({espece_t2}) — valeurs en °C/j",
-                margin={"r": 0, "t": 40, "l": 0, "b": 0},
+                margin={"r": 0, "t": 40, "l": 0, "b": 15},
                 height=580,
                 paper_bgcolor="rgba(0,0,0,0)",
                 geo_bgcolor="rgba(0,0,0,0)"
@@ -570,7 +578,6 @@ with tab2:
         df_ko = df_nat_var[df_nat_var["Atteint"] == False]
 
         fig_v = go.Figure()
-        # 1. Départements non atteints (grisés)
         if not df_ko.empty:
             fig_v.add_trace(go.Choropleth(
                 geojson=geojson_data,
@@ -586,7 +593,6 @@ with tab2:
                 hovertemplate="<b>%{text}</b><br>Statut : %{customdata}<extra></extra>"
             ))
 
-        # 2. Départements atteints (colorés selon durée)
         if not df_ok.empty:
             fig_v.add_trace(go.Choropleth(
                 geojson=geojson_data,
@@ -602,7 +608,6 @@ with tab2:
                 hovertemplate="<b>%{text}</b><br>Date récolte : %{customdata}<br>Durée : %{z:.0f} j<extra></extra>"
             ))
 
-        # 3. Étiquettes dates estimatives sur tous les départements
         df_lbl_v = df_nat_var.dropna(subset=["lon", "lat"])
         fig_v.add_trace(go.Scattergeo(
             lon=df_lbl_v["lon"],
@@ -614,12 +619,20 @@ with tab2:
             showlegend=False
         ))
 
+        fig_v.add_annotation(
+            text="Source LIDEA = outil interne",
+            xref="paper", yref="paper",
+            x=0.99, y=0.01,
+            xanchor="right", yanchor="bottom",
+            showarrow=False,
+            font=dict(size=10, color="#4A5568")
+        )
         fig_v.update_geos(fitbounds="locations", visible=False)
         fig_v.update_layout(
             title=f"Date de récolte estimée (JJ/MM) — {nom_var}",
-            margin={"r": 0, "t": 40, "l": 0, "b": 0},
+            margin={"r": 0, "t": 40, "l": 0, "b": 15},
             height=580,
             paper_bgcolor="rgba(0,0,0,0)",
             geo_bgcolor="rgba(0,0,0,0)"
         )
-        st.plotly_chart(fig_v, use_container_width=True)
+        st.plotly_chart(fig_v, use_container_width=True) 

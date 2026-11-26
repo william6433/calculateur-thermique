@@ -11,19 +11,22 @@ st.set_page_config(
     layout="wide"
 )
 
-SHEET_ID = "1wOQ0DTyrDGVB7g0jBTkbn8R6yme7PpUlOV5cc993sBY"
+SHEET_ID = "11tZCCjazkhdk-E_kr8DvE5LicmsL5719U3fdZilJd-0"
 GID_BDD = "893102045"
 GID_VARIETES = "511199017"
 GID_REGIONS = "891769745"
 
 # --- CHARGEMENT DES DONNÉES (AVEC CACHE 1H) ---
 def to_float(series):
-    return pd.to_numeric(series.astype(str).str.replace(",", ".").str.replace("\u202f", "").str.strip(), errors="coerce")
+    return pd.to_numeric(
+        series.astype(str).str.replace(",", ".").str.replace("\u202f", "").str.strip(),
+        errors="coerce"
+    )
 
 @st.cache_data(ttl=3600, show_spinner="Chargement de la base météo (300 000+ lignes)...")
 def load_bdd():
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={GID_BDD}"
-    df = pd.read_csv(url, dtype={"Code INSEE département": str})
+    df = pd.read_csv(url, dtype={"Code INSEE département": str}, low_memory=False)
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
     df["Année"] = df["Date"].dt.year
     df["MoisJour"] = df["Date"].dt.strftime("%m-%d")
@@ -36,7 +39,13 @@ def load_bdd():
 def load_varietes():
     url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={GID_VARIETES}"
     df = pd.read_csv(url)
-    for col in ["UC semis-épiaison", "UC semis-récolte", "UC semis-floraison", "UC semis-récolte (32% H2O)", "UC semis-récolte (32% MS)"]:
+    for col in [
+        "UC semis-épiaison",
+        "UC semis-récolte",
+        "UC semis-floraison",
+        "UC semis-récolte (32% H2O)",
+        "UC semis-récolte (32% MS)"
+    ]:
         if col in df.columns:
             df[col] = to_float(df[col])
     return df
@@ -75,7 +84,12 @@ with tab1:
     st.header("1. Historique thermique pluriannuel local (2018 - 2026)")
     c1, c2, c3, c4 = st.columns(4)
     espece_t1 = c1.selectbox("Espèce", ["Maïs", "Sorgho"], key="t1_esp")
-    dep_t1 = c2.selectbox("Département", liste_deps, index=liste_deps.index("Ille-et-Vilaine") if "Ille-et-Vilaine" in liste_deps else 0, key="t1_dep")
+    dep_t1 = c2.selectbox(
+        "Département",
+        liste_deps,
+        index=liste_deps.index("Ille-et-Vilaine") if "Ille-et-Vilaine" in liste_deps else 0,
+        key="t1_dep"
+    )
     semis_t1 = c3.date_input("Date de semis (JJ/MM)", value=datetime.date(2026, 4, 15), format="DD/MM/YYYY", key="t1_semis")
     recolte_t1 = c4.date_input("Date de récolte (JJ/MM)", value=datetime.date(2026, 9, 20), format="DD/MM/YYYY", key="t1_rec")
 
@@ -111,7 +125,7 @@ with tab1:
     st.header("2. Cumuls et analyse thermique comparative des 96 départements")
     d1, d2, d3, d4 = st.columns(4)
     espece_t2 = d1.selectbox("Espèce", ["Maïs", "Sorgho"], key="t2_esp")
-    annee_t2 = d2.selectbox("Année à analyser", annees_dispo, index=len(annees_dispo)-1, key="t2_an")
+    annee_t2 = d2.selectbox("Année à analyser", annees_dispo, index=len(annees_dispo) - 1, key="t2_an")
     semis_t2 = d3.date_input("Date de semis", value=datetime.date(2026, 4, 15), format="DD/MM/YYYY", key="t2_semis")
     recolte_t2 = d4.date_input("Date de récolte", value=datetime.date(2026, 9, 20), format="DD/MM/YYYY", key="t2_rec")
 
@@ -156,7 +170,7 @@ with tab1:
                 title=f"Carte thermique {annee_t2} ({espece_t2})"
             )
             fig.update_geos(fitbounds="locations", visible=False)
-            fig.update_layout(margin={"r":0,"t":40,"l":0,"b":0}, height=500)
+            fig.update_layout(margin={"r": 0, "t": 40, "l": 0, "b": 0}, height=500)
             st.plotly_chart(fig, use_container_width=True)
 
 # ==============================================================================
@@ -165,7 +179,12 @@ with tab1:
 with tab2:
     st.header("Paramètres de la variété")
     p1, p2, p3, p4 = st.columns(4)
-    dep_v = p1.selectbox("Département (Analyse locale)", liste_deps, index=liste_deps.index("Morbihan") if "Morbihan" in liste_deps else 0, key="v_dep")
+    dep_v = p1.selectbox(
+        "Département (Analyse locale)",
+        liste_deps,
+        index=liste_deps.index("Morbihan") if "Morbihan" in liste_deps else 0,
+        key="v_dep"
+    )
     esp_v = p2.selectbox("Espèce", sorted(varietes["Espèce"].dropna().unique()), key="v_esp")
 
     var_esp = varietes[varietes["Espèce"] == esp_v]
@@ -347,5 +366,5 @@ with tab2:
             title=f"Durée semis-récolte estimée (jours) — {nom_var}"
         )
         fig_v.update_geos(fitbounds="locations", visible=False)
-        fig_v.update_layout(margin={"r":0,"t":40,"l":0,"b":0}, height=500)
+        fig_v.update_layout(margin={"r": 0, "t": 40, "l": 0, "b": 0}, height=500)
         st.plotly_chart(fig_v, use_container_width=True)

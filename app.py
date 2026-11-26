@@ -15,6 +15,10 @@ st.set_page_config(
     initial_sidebar_state="auto"
 )
 
+# --- GESTION DE L'OUTIL ACTIF ---
+if "outil_actif" not in st.session_state:
+    st.session_state.outil_actif = "potentiel"
+
 # --- DESIGN, CODE COULEUR LIDEA & RESPONSIVE MOBILE (CSS) ---
 st.markdown("""
 <style>
@@ -26,7 +30,7 @@ st.markdown("""
         padding: 1.2rem 1.8rem;
         border-radius: 12px;
         color: white;
-        margin-bottom: 1.2rem;
+        margin-bottom: 1rem;
         box-shadow: 0 4px 12px rgba(46, 94, 46, 0.15);
     }
     .lidea-banner h1 {
@@ -40,6 +44,34 @@ st.markdown("""
         color: #E2EFDA !important;
         margin: 0.35rem 0 0 0 !important;
         font-size: 0.95rem !important;
+    }
+    /* Boutons de navigation principaux (Primary = actif, Secondary = inactif) */
+    button[kind="primary"] {
+        background-color: #2E5E2E !important;
+        color: white !important;
+        border: 2px solid #2E5E2E !important;
+        border-radius: 10px !important;
+        font-weight: 700 !important;
+        font-size: 1.05rem !important;
+        min-height: 54px !important;
+        box-shadow: 0 4px 10px rgba(46, 94, 46, 0.25) !important;
+    }
+    button[kind="primary"]:hover {
+        background-color: #244B24 !important;
+        border-color: #244B24 !important;
+    }
+    button[kind="secondary"] {
+        background-color: #FFFFFF !important;
+        color: #2E5E2E !important;
+        border: 2px solid #76B82A !important;
+        border-radius: 10px !important;
+        font-weight: 700 !important;
+        font-size: 1.05rem !important;
+        min-height: 54px !important;
+    }
+    button[kind="secondary"]:hover {
+        background-color: #EBF2E7 !important;
+        color: #2E5E2E !important;
     }
     div[data-testid="stMetric"] {
         background-color: #FFFFFF;
@@ -57,23 +89,6 @@ st.markdown("""
         color: #2E5E2E !important;
         font-weight: 700 !important;
     }
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 6px;
-        background-color: #EBF2E7;
-        padding: 6px;
-        border-radius: 10px;
-        flex-wrap: wrap;
-    }
-    .stTabs [data-baseweb="tab"] {
-        border-radius: 8px;
-        padding: 10px 18px;
-        font-weight: 600;
-        color: #2E5E2E;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #2E5E2E !important;
-        color: white !important;
-    }
     .section-title {
         color: #2E5E2E;
         border-bottom: 2px solid #76B82A;
@@ -82,18 +97,6 @@ st.markdown("""
         margin-bottom: 1rem;
         font-weight: 700;
         font-size: 1.25rem;
-    }
-    .stButton > button {
-        background-color: #2E5E2E;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-weight: 600;
-        min-height: 44px;
-    }
-    .stButton > button:hover {
-        background-color: #4E8B3B;
-        color: white;
     }
 
     /* --- ADAPTATIONS SPÉCIFIQUES TÉLÉPHONE PORTABLE --- */
@@ -113,14 +116,12 @@ st.markdown("""
         .lidea-banner p {
             font-size: 0.8rem !important;
         }
+        button[kind="primary"], button[kind="secondary"] {
+            font-size: 0.92rem !important;
+            min-height: 48px !important;
+        }
         .section-title {
             font-size: 1.05rem;
-        }
-        .stTabs [data-baseweb="tab"] {
-            padding: 8px 10px;
-            font-size: 0.85rem;
-            flex: 1 1 auto;
-            text-align: center;
         }
         div[data-testid="stMetric"] {
             padding: 10px 12px;
@@ -241,7 +242,7 @@ with st.sidebar:
         st.markdown("## 🌱 **LIDEA**")
     st.caption("Outil d'aide à la décision — Maïs & Sorgho")
     st.divider()
-    if st.button("🔄 Actualiser les données Sheets", use_container_width=True):
+    if st.button("🔄 Actualiser les données Sheets", use_container_width=True, type="primary"):
         st.cache_data.clear()
         st.rerun()
     st.info("Les ajouts dans Google Sheets (`BDD` et `BDD variétés`) sont actualisés automatiquement toutes les heures, ou immédiatement via le bouton ci-dessus.")
@@ -260,6 +261,28 @@ with col_head_logo:
         st.markdown('<div class="mobile-hide-logo"></div>', unsafe_allow_html=True)
         st.image(logo_path, use_container_width=True)
 
+# --- SÉLECTEUR D'OUTIL BIEN VISIBLE ---
+st.markdown("##### Choisissez votre outil :")
+nav_c1, nav_c2 = st.columns(2)
+with nav_c1:
+    if st.button(
+        "🌡️ POTENTIEL THERMIQUE DÉPARTEMENTAL",
+        use_container_width=True,
+        type="primary" if st.session_state.outil_actif == "potentiel" else "secondary"
+    ):
+        st.session_state.outil_actif = "potentiel"
+        st.rerun()
+with nav_c2:
+    if st.button(
+        "🌱 POSITIONNEMENT VARIÉTAL",
+        use_container_width=True,
+        type="primary" if st.session_state.outil_actif == "positionnement" else "secondary"
+    ):
+        st.session_state.outil_actif = "positionnement"
+        st.rerun()
+
+st.divider()
+
 # Chargement initial
 bdd = load_bdd()
 varietes = load_varietes()
@@ -274,13 +297,10 @@ plotly_config = {
     "modeBarButtonsToRemove": ["lasso2d", "select2d"]
 }
 
-# --- ONGLETS PRINCIPAUX ---
-tab1, tab2 = st.tabs(["🌡️ Potentiel Thermique", "🌱 Positionnement Variétal"])
-
 # ==============================================================================
-# ONGLET 1 : POTENTIEL THERMIQUE DÉPARTEMENTAL
+# OUTIL 1 : POTENTIEL THERMIQUE DÉPARTEMENTAL
 # ==============================================================================
-with tab1:
+if st.session_state.outil_actif == "potentiel":
     st.markdown('<div class="section-title">1. Historique thermique pluriannuel local (2018 - 2026)</div>', unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns(4)
     espece_t1 = c1.selectbox("Espèce", ["Maïs", "Sorgho"], key="t1_esp")
@@ -427,9 +447,9 @@ with tab1:
             st.plotly_chart(fig, use_container_width=True, config=plotly_config)
 
 # ==============================================================================
-# ONGLET 2 : POSITIONNEMENT VARIÉTAL
+# OUTIL 2 : POSITIONNEMENT VARIÉTAL
 # ==============================================================================
-with tab2:
+else:
     # --------------------------------------------------------------------------
     # PARTIE 1 : ANALYSE LOCALE (Lignes 5 à 28 du Google Sheet)
     # --------------------------------------------------------------------------
@@ -612,7 +632,6 @@ with tab2:
     default_deb_vn = 2021 if 2021 >= an_min and 2021 <= an_max else an_min
     periode_vn = st.slider("Période d'analyse nationale (campagnes)", an_min, an_max, (default_deb_vn, an_max), key="vn_periode")
 
-    # Récupération besoins thermiques nationaux
     row_vn = var_prec_n[var_prec_n["Variétés"] == nom_vn].iloc[0]
     if esp_vn.lower() == "sorgho":
         besoin_flo_n = row_vn["UC semis-épiaison"]
@@ -772,4 +791,4 @@ with tab2:
             paper_bgcolor="rgba(0,0,0,0)",
             geo_bgcolor="rgba(0,0,0,0)"
         )
-        st.plotly_chart(fig_v, use_container_width=True, config=plotly_config) 
+        st.plotly_chart(fig_v, use_container_width=True, config=plotly_config)

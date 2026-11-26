@@ -7,15 +7,15 @@ import os
 import json
 import urllib.request
 
-# --- CONFIGURATION DE LA PAGE ---
+# --- CONFIGURATION DE LA PAGE (AUTO-RESPONSIVE MOBILE) ---
 st.set_page_config(
     page_title="Lidea | Calculateur Potentiel Thermique & Positionnement Variétal",
     page_icon="🌽",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="auto"
 )
 
-# --- DESIGN & CODE COULEUR LIDEA (CSS PERSONNALISÉ) ---
+# --- DESIGN, CODE COULEUR LIDEA & RESPONSIVE MOBILE (CSS) ---
 st.markdown("""
 <style>
     .stApp {
@@ -26,7 +26,7 @@ st.markdown("""
         padding: 1.2rem 1.8rem;
         border-radius: 12px;
         color: white;
-        margin-bottom: 1.5rem;
+        margin-bottom: 1.2rem;
         box-shadow: 0 4px 12px rgba(46, 94, 46, 0.15);
     }
     .lidea-banner h1 {
@@ -34,10 +34,11 @@ st.markdown("""
         font-size: 1.7rem !important;
         margin: 0 !important;
         font-weight: 700 !important;
+        line-height: 1.25 !important;
     }
     .lidea-banner p {
         color: #E2EFDA !important;
-        margin: 0.3rem 0 0 0 !important;
+        margin: 0.35rem 0 0 0 !important;
         font-size: 0.95rem !important;
     }
     div[data-testid="stMetric"] {
@@ -57,14 +58,15 @@ st.markdown("""
         font-weight: 700 !important;
     }
     .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
+        gap: 6px;
         background-color: #EBF2E7;
         padding: 6px;
         border-radius: 10px;
+        flex-wrap: wrap;
     }
     .stTabs [data-baseweb="tab"] {
         border-radius: 8px;
-        padding: 10px 20px;
+        padding: 10px 18px;
         font-weight: 600;
         color: #2E5E2E;
     }
@@ -87,10 +89,49 @@ st.markdown("""
         border: none;
         border-radius: 8px;
         font-weight: 600;
+        min-height: 44px;
     }
     .stButton > button:hover {
         background-color: #4E8B3B;
         color: white;
+    }
+
+    /* --- ADAPTATIONS SPÉCIFIQUES TÉLÉPHONE PORTABLE --- */
+    @media (max-width: 768px) {
+        .block-container {
+            padding-left: 0.8rem !important;
+            padding-right: 0.8rem !important;
+            padding-top: 2.5rem !important;
+        }
+        .lidea-banner {
+            padding: 0.9rem 1rem;
+            margin-bottom: 0.8rem;
+        }
+        .lidea-banner h1 {
+            font-size: 1.2rem !important;
+        }
+        .lidea-banner p {
+            font-size: 0.8rem !important;
+        }
+        .section-title {
+            font-size: 1.05rem;
+        }
+        .stTabs [data-baseweb="tab"] {
+            padding: 8px 10px;
+            font-size: 0.85rem;
+            flex: 1 1 auto;
+            text-align: center;
+        }
+        div[data-testid="stMetric"] {
+            padding: 10px 12px;
+        }
+        div[data-testid="stMetricValue"] {
+            font-size: 1.25rem !important;
+        }
+        /* Masquer le grand logo d'en-tête sur mobile (déjà présent dans le menu) */
+        div[data-testid="column"]:has(.mobile-hide-logo) {
+            display: none;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -217,6 +258,7 @@ with col_head_txt:
     """, unsafe_allow_html=True)
 with col_head_logo:
     if logo_path:
+        st.markdown('<div class="mobile-hide-logo"></div>', unsafe_allow_html=True)
         st.image(logo_path, use_container_width=True)
 
 # Chargement initial
@@ -227,8 +269,14 @@ geojson_data, centroids = load_geojson_and_centroids()
 liste_deps = sorted(bdd["Département"].unique().tolist())
 annees_dispo = sorted(bdd["Année"].dropna().astype(int).unique().tolist())
 
+plotly_config = {
+    "responsive": True,
+    "displayModeBar": True,
+    "modeBarButtonsToRemove": ["lasso2d", "select2d"]
+}
+
 # --- ONGLETS PRINCIPAUX ---
-tab1, tab2 = st.tabs(["🌡️ Potentiel Thermique Départemental", "🌱 Positionnement Variétal"])
+tab1, tab2 = st.tabs(["🌡️ Potentiel Thermique", "🌱 Positionnement Variétal"])
 
 # ==============================================================================
 # ONGLET 1 : POTENTIEL THERMIQUE DÉPARTEMENTAL
@@ -311,7 +359,7 @@ with tab1:
 
     st.caption("Légende : 🔴 Rouge (< 1 200 °C/j)  •  🟠 Orange (1 200 - 1 500 °C/j)  •  🟢 Vert (≥ 1 500 °C/j)")
 
-    col_tab, col_map = st.columns([1.15, 1.15])
+    col_tab, col_map = st.columns([1.1, 1.15])
     with col_tab:
         df_nat_disp = nat_df[["Code INSEE département", "Département", "Moyenne journalière (°C/j)", "Somme (°C/j)", "Écart vs Moyenne France (°C/j)"]]
         st.dataframe(
@@ -321,7 +369,7 @@ with tab1:
                 "Écart vs Moyenne France (°C/j)": "{:+.1f}"
             }).map(color_somme_thermique, subset=["Somme (°C/j)"])
               .map(color_ecart, subset=["Écart vs Moyenne France (°C/j)"]),
-            use_container_width=True, height=580, hide_index=True
+            use_container_width=True, height=450, hide_index=True
         )
     with col_map:
         if not nat_df.empty:
@@ -337,7 +385,16 @@ with tab1:
                 z=nat_df["Somme (°C/j)"],
                 text=nat_df["Département"],
                 colorscale=[[0, "#d73027"], [0.5, "#fee08b"], [1, "#2E5E2E"]],
-                colorbar=dict(title="°C/j", thickness=14),
+                colorbar=dict(
+                    title="°C/j",
+                    orientation="h",
+                    y=-0.05,
+                    yanchor="top",
+                    thickness=12,
+                    len=0.75,
+                    x=0.5,
+                    xanchor="center"
+                ),
                 marker_line_color="white",
                 marker_line_width=0.6,
                 hovertemplate="<b>%{text}</b><br>Somme : %{z:.1f} °C/j<extra></extra>"
@@ -362,13 +419,13 @@ with tab1:
             )
             fig.update_geos(fitbounds="locations", visible=False)
             fig.update_layout(
-                title=f"Carte thermique {annee_t2} ({espece_t2}) — valeurs en °C/j",
-                margin={"r": 0, "t": 40, "l": 0, "b": 15},
-                height=580,
+                title=f"Carte thermique {annee_t2} ({espece_t2}) — °C/j",
+                margin={"r": 0, "t": 40, "l": 0, "b": 45},
+                height=520,
                 paper_bgcolor="rgba(0,0,0,0)",
                 geo_bgcolor="rgba(0,0,0,0)"
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, config=plotly_config)
 
 # ==============================================================================
 # ONGLET 2 : POSITIONNEMENT VARIÉTAL
@@ -560,7 +617,7 @@ with tab2:
     df_nat_var = pd.DataFrame(nat_var_rows)
     st.caption("Légende carte : 🟢 Vert à Jaune = Maturité atteinte avant la date cible  •  ⬜ Gris = Date cible non atteinte (avec date estimative affichée)")
 
-    col_vt, col_vm = st.columns([1.15, 1.15])
+    col_vt, col_vm = st.columns([1.1, 1.15])
     with col_vt:
         df_vt_disp = df_nat_var.drop(columns=["Atteint", "Label Carte"])
         st.dataframe(
@@ -568,7 +625,7 @@ with tab2:
                 f"Durée {lbl_flo.lower()} (j)": "{:.0f}",
                 "Durée récolte (j)": "{:.0f}"
             }, na_rep="—").map(color_statut_var, subset=[f"Date {lbl_flo.lower()} estimée", "Date récolte estimée"]),
-            use_container_width=True, height=580, hide_index=True
+            use_container_width=True, height=450, hide_index=True
         )
     with col_vm:
         df_nat_var["lon"] = df_nat_var["Code INSEE"].map(lambda c: centroids.get(c, (None, None))[0])
@@ -602,7 +659,16 @@ with tab2:
                 text=df_ok["Département"],
                 customdata=df_ok["Date récolte estimée"],
                 colorscale=[[0, "#2E5E2E"], [0.5, "#76B82A"], [1, "#fee08b"]],
-                colorbar=dict(title="Jours", thickness=14),
+                colorbar=dict(
+                    title="Jours",
+                    orientation="h",
+                    y=-0.05,
+                    yanchor="top",
+                    thickness=12,
+                    len=0.75,
+                    x=0.5,
+                    xanchor="center"
+                ),
                 marker_line_color="white",
                 marker_line_width=0.6,
                 hovertemplate="<b>%{text}</b><br>Date récolte : %{customdata}<br>Durée : %{z:.0f} j<extra></extra>"
@@ -630,9 +696,9 @@ with tab2:
         fig_v.update_geos(fitbounds="locations", visible=False)
         fig_v.update_layout(
             title=f"Date de récolte estimée (JJ/MM) — {nom_var}",
-            margin={"r": 0, "t": 40, "l": 0, "b": 15},
-            height=580,
+            margin={"r": 0, "t": 40, "l": 0, "b": 45},
+            height=520,
             paper_bgcolor="rgba(0,0,0,0)",
             geo_bgcolor="rgba(0,0,0,0)"
         )
-        st.plotly_chart(fig_v, use_container_width=True) 
+        st.plotly_chart(fig_v, use_container_width=True, config=plotly_config)

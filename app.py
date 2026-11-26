@@ -128,7 +128,6 @@ st.markdown("""
         div[data-testid="stMetricValue"] {
             font-size: 1.25rem !important;
         }
-        /* Masquer le grand logo d'en-tête sur mobile (déjà présent dans le menu) */
         div[data-testid="column"]:has(.mobile-hide-logo) {
             display: none;
         }
@@ -431,10 +430,13 @@ with tab1:
 # ONGLET 2 : POSITIONNEMENT VARIÉTAL
 # ==============================================================================
 with tab2:
-    st.markdown('<div class="section-title">Paramètres de sélection variétale</div>', unsafe_allow_html=True)
+    # --------------------------------------------------------------------------
+    # PARTIE 1 : ANALYSE LOCALE (Lignes 5 à 28 du Google Sheet)
+    # --------------------------------------------------------------------------
+    st.markdown('<div class="section-title">1. Cycle phénologique local — Paramètres de sélection</div>', unsafe_allow_html=True)
     p1, p2, p3, p4 = st.columns(4)
     dep_v = p1.selectbox(
-        "Département (Analyse locale)",
+        "Département",
         liste_deps,
         index=liste_deps.index("Morbihan") if "Morbihan" in liste_deps else 0,
         key="v_dep"
@@ -455,16 +457,14 @@ with tab2:
     if esp_v.lower() == "maïs" and dest_v.lower() == "mixte":
         obj_val = p6.selectbox("Objectif valorisation (Mixte)", ["Fourrage", "Grain"], key="v_obj")
     else:
-        p6.text_input("Objectif valorisation", value=dest_v, disabled=True)
+        p6.text_input("Objectif valorisation", value=dest_v, disabled=True, key="v_obj_disp")
 
     semis_v = p7.date_input("Date de semis", value=datetime.date(2026, 4, 20), format="DD/MM/YYYY", key="v_semis")
     recolte_cible_v = p8.date_input("Date de récolte cible", value=datetime.date(2026, 9, 15), format="DD/MM/YYYY", key="v_rec_cible")
 
-    # Période d'analyse
     an_min, an_max = min(annees_dispo), max(annees_dispo)
-    periode = st.slider("Période d'analyse (campagnes)", an_min, an_max, (an_min, an_max))
+    periode = st.slider("Période d'analyse locale (campagnes)", an_min, an_max, (an_min, an_max), key="v_periode")
 
-    # Récupération besoins thermiques
     row_v = var_prec[var_prec["Variétés"] == nom_var].iloc[0]
     if esp_v.lower() == "sorgho":
         besoin_flo = row_v["UC semis-épiaison"]
@@ -485,7 +485,7 @@ with tab2:
     b2.metric("Besoin Récolte", f"{besoin_rec:.0f} °C/j" if pd.notna(besoin_rec) else "Non renseigné")
     b3.metric("Base thermique", "Base 8-34°C" if esp_v.lower() == "sorgho" else "Base 6-30°C")
 
-    st.markdown(f'<div class="section-title">1. Cycle phénologique local — {dep_v} ({periode[0]} - {periode[1]})</div>', unsafe_allow_html=True)
+    st.subheader(f"Résultats locaux — {nom_var} en {dep_v} ({periode[0]} - {periode[1]})")
     bdd_loc = bdd[(bdd["Département"] == dep_v) & (bdd["Année"] >= periode[0]) & (bdd["Année"] <= periode[1])]
 
     loc_rows = []
@@ -563,33 +563,104 @@ with tab2:
         hide_index=True
     )
 
-    st.markdown(f'<div class="section-title">2. Vision nationale de la variété {nom_var} (96 départements)</div>', unsafe_allow_html=True)
-    bdd_nat = bdd[(bdd["Année"] >= periode[0]) & (bdd["Année"] <= periode[1]) & (bdd["MoisJour"] >= semis_v.strftime("%m-%d"))]
+    # --------------------------------------------------------------------------
+    # PARTIE 2 : VISION NATIONALE (Lignes 33 à 138 du Google Sheet)
+    # --------------------------------------------------------------------------
+    st.divider()
+    st.markdown('<div class="section-title">2. Vision nationale (96 départements) — Paramètres de sélection</div>', unsafe_allow_html=True)
+
+    vn_c1, vn_c2, vn_c3, vn_c4 = st.columns(4)
+    esp_vn = vn_c1.selectbox("Espèce", sorted(varietes["Espèce"].dropna().unique()), key="vn_esp")
+
+    var_esp_n = varietes[varietes["Espèce"] == esp_vn]
+    dest_list_n = sorted(var_esp_n["Destination"].dropna().unique())
+    dest_vn = vn_c2.selectbox(
+        "Destination",
+        dest_list_n,
+        index=dest_list_n.index("Grain") if "Grain" in dest_list_n else 0,
+        key="vn_dest"
+    )
+
+    var_dest_n = var_esp_n[var_esp_n["Destination"] == dest_vn]
+    prec_list_n = sorted(var_dest_n["Précocité"].dropna().unique())
+    prec_vn = vn_c3.selectbox(
+        "Précocité",
+        prec_list_n,
+        index=prec_list_n.index("G1") if "G1" in prec_list_n else 0,
+        key="vn_prec"
+    )
+
+    var_prec_n = var_dest_n[var_dest_n["Précocité"] == prec_vn]
+    nom_list_n = sorted(var_prec_n["Variétés"].dropna().unique())
+    nom_vn = vn_c4.selectbox(
+        "Variété",
+        nom_list_n,
+        index=nom_list_n.index("BANDANA") if "BANDANA" in nom_list_n else 0,
+        key="vn_nom"
+    )
+
+    vn_c5, vn_c6, vn_c7 = st.columns(3)
+    obj_val_n = "Grain"
+    if esp_vn.lower() == "maïs" and dest_vn.lower() == "mixte":
+        obj_val_n = vn_c5.selectbox("Objectif valorisation (Mixte)", ["Fourrage", "Grain"], key="vn_obj")
+    else:
+        vn_c5.text_input("Objectif valorisation", value=dest_vn, disabled=True, key="vn_obj_disp")
+
+    semis_vn = vn_c6.date_input("Date de semis", value=datetime.date(2027, 4, 1), format="DD/MM/YYYY", key="vn_semis")
+    recolte_cible_vn = vn_c7.date_input("Date de récolte cible", value=datetime.date(2027, 9, 10), format="DD/MM/YYYY", key="vn_rec_cible")
+
+    default_deb_vn = 2021 if 2021 >= an_min and 2021 <= an_max else an_min
+    periode_vn = st.slider("Période d'analyse nationale (campagnes)", an_min, an_max, (default_deb_vn, an_max), key="vn_periode")
+
+    # Récupération besoins thermiques nationaux
+    row_vn = var_prec_n[var_prec_n["Variétés"] == nom_vn].iloc[0]
+    if esp_vn.lower() == "sorgho":
+        besoin_flo_n = row_vn["UC semis-épiaison"]
+        besoin_rec_n = row_vn["UC semis-récolte"]
+        lbl_flo_n = "Épiaison"
+        col_uc_vn = "Somme d°C/j Sorgho (base 8-34)"
+    else:
+        besoin_flo_n = row_vn["UC semis-floraison"]
+        if dest_vn.lower() == "fourrage" or (dest_vn.lower() == "mixte" and obj_val_n.lower() == "fourrage"):
+            besoin_rec_n = row_vn["UC semis-récolte (32% MS)"]
+        else:
+            besoin_rec_n = row_vn["UC semis-récolte (32% H2O)"]
+        lbl_flo_n = "Floraison"
+        col_uc_vn = "Somme d°C/j"
+
+    bn1, bn2, bn3 = st.columns(3)
+    bn1.metric(f"Besoin {lbl_flo_n}", f"{besoin_flo_n:.0f} °C/j" if pd.notna(besoin_flo_n) else "Non renseigné")
+    bn2.metric("Besoin Récolte", f"{besoin_rec_n:.0f} °C/j" if pd.notna(besoin_rec_n) else "Non renseigné")
+    bn3.metric("Base thermique", "Base 8-34°C" if esp_vn.lower() == "sorgho" else "Base 6-30°C")
+
+    st.subheader(f"Analyse comparative des 96 départements — {nom_vn} ({periode_vn[0]} - {periode_vn[1]})")
+    bdd_nat = bdd[(bdd["Année"] >= periode_vn[0]) & (bdd["Année"] <= periode_vn[1]) & (bdd["MoisJour"] >= semis_vn.strftime("%m-%d"))]
+    d_cible_ref = datetime.date(semis_vn.year, recolte_cible_vn.month, recolte_cible_vn.day)
 
     nat_var_rows = []
     for (code_dep, nom_dep), grp in bdd_nat.groupby(["Code INSEE département", "Département"]):
         d_f_list, d_r_list = [], []
         for an, g_an in grp.groupby("Année"):
             g_an = g_an.sort_values("Date")
-            cum = g_an[col_uc_v].cumsum()
+            cum = g_an[col_uc_vn].cumsum()
             d0 = g_an["Date"].iloc[0]
-            if pd.notna(besoin_flo):
-                hf = g_an[cum >= besoin_flo]
+            if pd.notna(besoin_flo_n):
+                hf = g_an[cum >= besoin_flo_n]
                 if not hf.empty:
                     d_f_list.append((hf["Date"].iloc[0] - d0).days)
-            if pd.notna(besoin_rec):
-                hr = g_an[cum >= besoin_rec]
+            if pd.notna(besoin_rec_n):
+                hr = g_an[cum >= besoin_rec_n]
                 if not hr.empty:
                     d_r_list.append((hr["Date"].iloc[0] - d0).days)
 
         mf = round(np.mean(d_f_list)) if len(d_f_list) > 0 else None
         mr = round(np.mean(d_r_list)) if len(d_r_list) > 0 else None
-        date_f_est = (semis_v + datetime.timedelta(days=mf)).strftime("%d/%m/%Y") if mf else "Non atteint"
+        date_f_est = (semis_vn + datetime.timedelta(days=mf)).strftime("%d/%m/%Y") if mf else "Non atteint"
 
         if mr:
-            dt_r_est = semis_v + datetime.timedelta(days=mr)
+            dt_r_est = semis_vn + datetime.timedelta(days=mr)
             label_carte = dt_r_est.strftime("%d/%m")
-            if dt_r_est > recolte_cible_v:
+            if dt_r_est > d_cible_ref:
                 date_r_est = f"Non atteint ({dt_r_est.strftime('%d/%m/%Y')})"
                 dur_r_est = mr
                 atteint = False
@@ -606,8 +677,8 @@ with tab2:
         nat_var_rows.append({
             "Code INSEE": code_dep,
             "Département": nom_dep,
-            f"Date {lbl_flo.lower()} estimée": date_f_est,
-            f"Durée {lbl_flo.lower()} (j)": mf if mf else np.nan,
+            f"Date {lbl_flo_n.lower()} estimée": date_f_est,
+            f"Durée {lbl_flo_n.lower()} (j)": mf if mf else np.nan,
             "Date récolte estimée": date_r_est,
             "Durée récolte (j)": dur_r_est,
             "Atteint": atteint,
@@ -622,9 +693,9 @@ with tab2:
         df_vt_disp = df_nat_var.drop(columns=["Atteint", "Label Carte"])
         st.dataframe(
             df_vt_disp.style.format({
-                f"Durée {lbl_flo.lower()} (j)": "{:.0f}",
+                f"Durée {lbl_flo_n.lower()} (j)": "{:.0f}",
                 "Durée récolte (j)": "{:.0f}"
-            }, na_rep="—").map(color_statut_var, subset=[f"Date {lbl_flo.lower()} estimée", "Date récolte estimée"]),
+            }, na_rep="—").map(color_statut_var, subset=[f"Date {lbl_flo_n.lower()} estimée", "Date récolte estimée"]),
             use_container_width=True, height=450, hide_index=True
         )
     with col_vm:
@@ -695,7 +766,7 @@ with tab2:
         )
         fig_v.update_geos(fitbounds="locations", visible=False)
         fig_v.update_layout(
-            title=f"Date de récolte estimée (JJ/MM) — {nom_var}",
+            title=f"Date de récolte estimée (JJ/MM) — {nom_vn}",
             margin={"r": 0, "t": 40, "l": 0, "b": 45},
             height=520,
             paper_bgcolor="rgba(0,0,0,0)",

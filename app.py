@@ -1,9 +1,11 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
+import plotly.graph_objects as go
 import datetime
 import os
+import json
+import urllib.request
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
@@ -16,11 +18,9 @@ st.set_page_config(
 # --- DESIGN & CODE COULEUR LIDEA (CSS PERSONNALISÉ) ---
 st.markdown("""
 <style>
-    /* Couleur de fond générale douce */
     .stApp {
         background-color: #F8FAF7;
     }
-    /* Bannière d'en-tête */
     .lidea-banner {
         background: linear-gradient(90deg, #2E5E2E 0%, #4E8B3B 100%);
         padding: 1.2rem 1.8rem;
@@ -40,7 +40,6 @@ st.markdown("""
         margin: 0.3rem 0 0 0 !important;
         font-size: 0.95rem !important;
     }
-    /* Cartes d'indicateurs (Metrics) */
     div[data-testid="stMetric"] {
         background-color: #FFFFFF;
         border-left: 5px solid #5B9A32;
@@ -57,7 +56,6 @@ st.markdown("""
         color: #2E5E2E !important;
         font-weight: 700 !important;
     }
-    /* Onglets (Tabs) */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background-color: #EBF2E7;
@@ -74,7 +72,6 @@ st.markdown("""
         background-color: #2E5E2E !important;
         color: white !important;
     }
-    /* Titres de sections */
     .section-title {
         color: #2E5E2E;
         border-bottom: 2px solid #76B82A;
@@ -84,7 +81,6 @@ st.markdown("""
         font-weight: 700;
         font-size: 1.25rem;
     }
-    /* Boutons */
     .stButton > button {
         background-color: #2E5E2E;
         color: white;
@@ -145,6 +141,24 @@ def load_regions():
     df["Code"] = df["Code"].astype(str).str.strip().str.zfill(2)
     return df
 
+@st.cache_data(ttl=86400)
+def load_geojson_and_centroids():
+    url = "https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements-version-simplifiee.geojson"
+    with urllib.request.urlopen(url) as resp:
+        geojson_data = json.loads(resp.read().decode("utf-8"))
+    centroids = {}
+    for feat in geojson_data["features"]:
+        code = str(feat["properties"]["code"]).strip().zfill(2)
+        geom = feat["geometry"]
+        if geom["type"] == "Polygon":
+            coords = geom["coordinates"][0]
+        else:
+            coords = max(geom["coordinates"], key=lambda p: len(p[0]))[0]
+        lon = sum(c[0] for c in coords) / len(coords)
+        lat = sum(c[1] for c in coords) / len(coords)
+        centroids[code] = (lon, lat)
+    return geojson_data, centroids
+
 # --- FONCTIONS DE COULEURS CONDITIONNELLES ---
 def color_somme_thermique(val):
     if pd.isna(val):
@@ -165,7 +179,7 @@ def color_ecart(val):
 
 def color_statut_var(val):
     if isinstance(val, str) and "Non atteint" in val:
-        return "background-color: #FADBD8; color: #922B21; font-weight: 600;"
+        return "background-color: #E5E7E9; color: #566573; font-weight: 600;"
     elif isinstance(val, str) and "Non renseigné" in val:
         return "color: #7F8C8D;"
     elif isinstance(val, str) and ("/" in val or "j" in val):
@@ -209,9 +223,9 @@ with col_head_logo:
 bdd = load_bdd()
 varietes = load_varietes()
 regions = load_regions()
+geojson_data, centroids = load_geojson_and_centroids()
 liste_deps = sorted(bdd["Département"].unique().tolist())
 annees_dispo = sorted(bdd["Année"].dropna().astype(int).unique().tolist())
-geojson_url = "https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/departements-version-simplifiee.geojson"
 
 # --- ONGLETS PRINCIPAUX ---
 tab1, tab2 = st.tabs(["🌡️ Potentiel Thermique Départemental", "🌱 Positionnement Variétal"])
@@ -297,7 +311,7 @@ with tab1:
 
     st.caption("Légende : 🔴 Rouge (< 1 200 °C/j)  •  🟠 Orange (1 200 - 1 500 °C/j)  •  🟢 Vert (≥ 1 500 °C/j)")
 
-    col_tab, col_map = st.columns([1.25, 1])
+    col_tab, col_map = st.columns([1.15, 1.15])
     with col_tab:
         df_nat_disp = nat_df[["Code INSEE département", "Département", "Moyenne journalière (°C/j)", "Somme (°C/j)", "Écart vs Moyenne France (°C/j)"]]
         st.dataframe(
@@ -307,24 +321,42 @@ with tab1:
                 "Écart vs Moyenne France (°C/j)": "{:+.1f}"
             }).map(color_somme_thermique, subset=["Somme (°C/j)"])
               .map(color_ecart, subset=["Écart vs Moyenne France (°C/j)"]),
-            use_container_width=True, height=520, hide_index=True
+            use_container_width=True, height=580, hide_index=True
         )
     with col_map:
         if not nat_df.empty:
-            fig = px.choropleth(
-                nat_df,
-                geojson=geojson_url,
-                locations="Code INSEE département",
+            nat_df["lon"] = nat_df["Code INSEE département"].map(lambda c: centroids.get(c, (None, None))[0])
+            nat_df["lat"] = nat_df["Code INSEE département"].map(lambda c: centroids.get(c, (None, None))[1])
+            nat_df["label_carte"] = nat_df["Somme (°C/j)"].round(0).astype(int).astype(str)
+
+            fig = go.Figure()
+            fig.add_trace(go.Choropleth(
+                geojson=geojson_data,
+                locations=nat_df["Code INSEE département"],
                 featureidkey="properties.code",
-                color="Somme (°C/j)",
-                hover_name="Département",
-                color_continuous_scale=["#d73027", "#fee08b", "#2E5E2E"],
-                title=f"Carte thermique {annee_t2} ({espece_t2})"
-            )
+                z=nat_df["Somme (°C/j)"],
+                text=nat_df["Département"],
+                colorscale=[[0, "#d73027"], [0.5, "#fee08b"], [1, "#2E5E2E"]],
+                colorbar=dict(title="°C/j", thickness=14),
+                marker_line_color="white",
+                marker_line_width=0.6,
+                hovertemplate="<b>%{text}</b><br>Somme : %{z:.1f} °C/j<extra></extra>"
+            ))
+            df_lbl = nat_df.dropna(subset=["lon", "lat"])
+            fig.add_trace(go.Scattergeo(
+                lon=df_lbl["lon"],
+                lat=df_lbl["lat"],
+                text=df_lbl["label_carte"],
+                mode="text",
+                textfont=dict(size=7.5, color="#111111"),
+                hoverinfo="skip",
+                showlegend=False
+            ))
             fig.update_geos(fitbounds="locations", visible=False)
             fig.update_layout(
+                title=f"Carte thermique {annee_t2} ({espece_t2}) — valeurs en °C/j",
                 margin={"r": 0, "t": 40, "l": 0, "b": 0},
-                height=520,
+                height=580,
                 paper_bgcolor="rgba(0,0,0,0)",
                 geo_bgcolor="rgba(0,0,0,0)"
             )
@@ -491,12 +523,20 @@ with tab2:
 
         if mr:
             dt_r_est = semis_v + datetime.timedelta(days=mr)
+            label_carte = dt_r_est.strftime("%d/%m")
             if dt_r_est > recolte_cible_v:
-                date_r_est, dur_r_est = "Non atteint", np.nan
+                date_r_est = f"Non atteint ({dt_r_est.strftime('%d/%m/%Y')})"
+                dur_r_est = mr
+                atteint = False
             else:
-                date_r_est, dur_r_est = dt_r_est.strftime("%d/%m/%Y"), mr
+                date_r_est = dt_r_est.strftime("%d/%m/%Y")
+                dur_r_est = mr
+                atteint = True
         else:
-            date_r_est, dur_r_est = "Non atteint", np.nan
+            date_r_est = "Non atteint"
+            label_carte = "N/A"
+            dur_r_est = np.nan
+            atteint = False
 
         nat_var_rows.append({
             "Code INSEE": code_dep,
@@ -504,35 +544,81 @@ with tab2:
             f"Date {lbl_flo.lower()} estimée": date_f_est,
             f"Durée {lbl_flo.lower()} (j)": mf if mf else np.nan,
             "Date récolte estimée": date_r_est,
-            "Durée récolte (j)": dur_r_est
+            "Durée récolte (j)": dur_r_est,
+            "Atteint": atteint,
+            "Label Carte": label_carte
         })
 
     df_nat_var = pd.DataFrame(nat_var_rows)
-    col_vt, col_vm = st.columns([1.25, 1])
+    st.caption("Légende carte : 🟢 Vert à Jaune = Maturité atteinte avant la date cible  •  ⬜ Gris = Date cible non atteinte (avec date estimative affichée)")
+
+    col_vt, col_vm = st.columns([1.15, 1.15])
     with col_vt:
+        df_vt_disp = df_nat_var.drop(columns=["Atteint", "Label Carte"])
         st.dataframe(
-            df_nat_var.style.format({
+            df_vt_disp.style.format({
                 f"Durée {lbl_flo.lower()} (j)": "{:.0f}",
                 "Durée récolte (j)": "{:.0f}"
             }, na_rep="—").map(color_statut_var, subset=[f"Date {lbl_flo.lower()} estimée", "Date récolte estimée"]),
-            use_container_width=True, height=520, hide_index=True
+            use_container_width=True, height=580, hide_index=True
         )
     with col_vm:
-        fig_v = px.choropleth(
-            df_nat_var,
-            geojson=geojson_url,
-            locations="Code INSEE",
-            featureidkey="properties.code",
-            color="Durée récolte (j)",
-            hover_name="Département",
-            hover_data=["Date récolte estimée"],
-            color_continuous_scale=["#2E5E2E", "#76B82A", "#fee08b"],
-            title=f"Durée semis-récolte estimée (jours) — {nom_var}"
-        )
+        df_nat_var["lon"] = df_nat_var["Code INSEE"].map(lambda c: centroids.get(c, (None, None))[0])
+        df_nat_var["lat"] = df_nat_var["Code INSEE"].map(lambda c: centroids.get(c, (None, None))[1])
+
+        df_ok = df_nat_var[df_nat_var["Atteint"] == True]
+        df_ko = df_nat_var[df_nat_var["Atteint"] == False]
+
+        fig_v = go.Figure()
+        # 1. Départements non atteints (grisés)
+        if not df_ko.empty:
+            fig_v.add_trace(go.Choropleth(
+                geojson=geojson_data,
+                locations=df_ko["Code INSEE"],
+                featureidkey="properties.code",
+                z=[1] * len(df_ko),
+                text=df_ko["Département"],
+                customdata=df_ko["Date récolte estimée"],
+                colorscale=[[0, "#D5D8DC"], [1, "#D5D8DC"]],
+                showscale=False,
+                marker_line_color="white",
+                marker_line_width=0.6,
+                hovertemplate="<b>%{text}</b><br>Statut : %{customdata}<extra></extra>"
+            ))
+
+        # 2. Départements atteints (colorés selon durée)
+        if not df_ok.empty:
+            fig_v.add_trace(go.Choropleth(
+                geojson=geojson_data,
+                locations=df_ok["Code INSEE"],
+                featureidkey="properties.code",
+                z=df_ok["Durée récolte (j)"],
+                text=df_ok["Département"],
+                customdata=df_ok["Date récolte estimée"],
+                colorscale=[[0, "#2E5E2E"], [0.5, "#76B82A"], [1, "#fee08b"]],
+                colorbar=dict(title="Jours", thickness=14),
+                marker_line_color="white",
+                marker_line_width=0.6,
+                hovertemplate="<b>%{text}</b><br>Date récolte : %{customdata}<br>Durée : %{z:.0f} j<extra></extra>"
+            ))
+
+        # 3. Étiquettes dates estimatives sur tous les départements
+        df_lbl_v = df_nat_var.dropna(subset=["lon", "lat"])
+        fig_v.add_trace(go.Scattergeo(
+            lon=df_lbl_v["lon"],
+            lat=df_lbl_v["lat"],
+            text=df_lbl_v["Label Carte"],
+            mode="text",
+            textfont=dict(size=7, color="#111111"),
+            hoverinfo="skip",
+            showlegend=False
+        ))
+
         fig_v.update_geos(fitbounds="locations", visible=False)
         fig_v.update_layout(
+            title=f"Date de récolte estimée (JJ/MM) — {nom_var}",
             margin={"r": 0, "t": 40, "l": 0, "b": 0},
-            height=520,
+            height=580,
             paper_bgcolor="rgba(0,0,0,0)",
             geo_bgcolor="rgba(0,0,0,0)"
         )

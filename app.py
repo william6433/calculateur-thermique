@@ -494,7 +494,7 @@ else:
     dep_v = p1.selectbox(
         "Département",
         liste_deps,
-        index=liste_deps.index("Morbihan") if "Morbihan" in liste_deps else 0,
+        index=liste_deps.index("Maine-et-Loire") if "Maine-et-Loire" in liste_deps else 0,
         key="v_dep"
     )
     esp_v = p2.selectbox("Espèce", sorted(varietes["Espèce"].dropna().unique()), key="v_esp")
@@ -596,15 +596,16 @@ else:
 
     moy_f = round(np.mean(durees_flo)) if durees_flo else None
     moy_r = round(np.mean(durees_rec)) if durees_rec else None
+    dt_moy_f = (semis_v + datetime.timedelta(days=moy_f)) if moy_f else None
+    dt_moy_r = (semis_v + datetime.timedelta(days=moy_r)) if moy_r else None
+
     k_v1, k_v2, k_v3 = st.columns(3)
-    if moy_f:
-        dt_moy_f = semis_v + datetime.timedelta(days=moy_f)
+    if dt_moy_f:
         k_v1.metric(f"Estimation {lbl_flo} (moyenne)", dt_moy_f.strftime("%d/%m"), f"{moy_f} jours")
     else:
         k_v1.metric(f"Estimation {lbl_flo}", "N/A")
 
-    if moy_r:
-        dt_moy_r = semis_v + datetime.timedelta(days=moy_r)
+    if dt_moy_r:
         k_v2.metric("Estimation Récolte (moyenne)", dt_moy_r.strftime("%d/%m"), f"{moy_r} jours")
     else:
         k_v2.metric("Estimation Récolte", "Maturité non garantie")
@@ -620,7 +621,7 @@ else:
     )
 
     # --------------------------------------------------------------------------
-    # PARTIE 2 : VISION NATIONALE (Lignes 33 à 138 du Google Sheet)
+    # PARTIE 2 : VISION NATIONALE (Alignée 100% sur les formules Sheets P, Q, R, H)
     # --------------------------------------------------------------------------
     st.divider()
     st.markdown('<div class="section-title">2. Vision nationale (96 départements) — Paramètres de sélection</div>', unsafe_allow_html=True)
@@ -689,33 +690,48 @@ else:
     bn3.metric("Base thermique", "Base 8-34°C" if esp_vn.lower() == "sorgho" else "Base 6-30°C")
 
     st.subheader(f"Analyse comparative des 96 départements — {nom_vn} ({periode_vn[0]} - {periode_vn[1]})")
-    bdd_nat = bdd[(bdd["Année"] >= periode_vn[0]) & (bdd["Année"] <= periode_vn[1]) & (bdd["MoisJour"] >= semis_vn.strftime("%m-%d"))]
+
+    # Bornes de dates identiques aux colonnes P, Q et R du Google Sheet
+    mj_sem_n = semis_vn.strftime("%m-%d")
+    mj_cible_n = recolte_cible_vn.strftime("%m-%d")
+    mj_flo_fin = (dt_moy_f - datetime.timedelta(days=2)).strftime("%m-%d") if dt_moy_f else "06-22"
+    mj_rec_fin = (dt_moy_r + datetime.timedelta(days=2)).strftime("%m-%d") if dt_moy_r else "08-07"
+    nb_ans_vn = periode_vn[1] - periode_vn[0] + 1
     d_cible_ref = datetime.date(semis_vn.year, recolte_cible_vn.month, recolte_cible_vn.day)
 
+    bdd_nat = bdd[(bdd["Année"] >= periode_vn[0]) & (bdd["Année"] <= periode_vn[1]) & (bdd["MoisJour"] >= mj_sem_n)]
+
+    # Calcul vectorisé des colonnes P, Q et R (identique à Sheets)
+    p_series = bdd_nat[bdd_nat["MoisJour"] <= mj_flo_fin].groupby(["Code INSEE département", "Département"])[col_uc_vn].mean()
+    q_series = bdd_nat[bdd_nat["MoisJour"] <= mj_rec_fin].groupby(["Code INSEE département", "Département"])[col_uc_vn].mean()
+    r_series = bdd_nat[bdd_nat["MoisJour"] <= mj_cible_n].groupby(["Code INSEE département", "Département"])[col_uc_vn].sum() / nb_ans_vn
+
+    deps_nat = bdd_nat[["Code INSEE département", "Département"]].drop_duplicates().sort_values("Code INSEE département")
     nat_var_rows = []
-    for (code_dep, nom_dep), grp in bdd_nat.groupby(["Code INSEE département", "Département"]):
-        d_f_list, d_r_list = [], []
-        for an, g_an in grp.groupby("Année"):
-            g_an = g_an.sort_values("Date")
-            cum = g_an[col_uc_vn].cumsum()
-            d0 = g_an["Date"].iloc[0]
-            if pd.notna(besoin_flo_n):
-                hf = g_an[cum >= besoin_flo_n]
-                if not hf.empty:
-                    d_f_list.append((hf["Date"].iloc[0] - d0).days)
-            if pd.notna(besoin_rec_n):
-                hr = g_an[cum >= besoin_rec_n]
-                if not hr.empty:
-                    d_r_list.append((hr["Date"].iloc[0] - d0).days)
 
-        mf = round(np.mean(d_f_list)) if len(d_f_list) > 0 else None
-        mr = round(np.mean(d_r_list)) if len(d_r_list) > 0 else None
-        date_f_est = (semis_vn + datetime.timedelta(days=mf)).strftime("%d/%m/%Y") if mf else "Non atteint"
+    for _, row_d in deps_nat.iterrows():
+        code_dep = row_d["Code INSEE département"]
+        nom_dep = row_d["Département"]
+        key = (code_dep, nom_dep)
 
-        if mr:
+        p_val = p_series.get(key, 0.0)
+        q_val = q_series.get(key, 0.0)
+        r_val = r_series.get(key, 0.0)
+
+        # Estimation Floraison / Épiaison (Colonne E & F)
+        if pd.notna(besoin_flo_n) and besoin_flo_n > 0 and pd.notna(p_val) and p_val > 0:
+            mf = int(round(besoin_flo_n / p_val))
+            date_f_est = (semis_vn + datetime.timedelta(days=mf)).strftime("%d/%m/%Y")
+        else:
+            mf = np.nan
+            date_f_est = "Non renseigné" if pd.isna(besoin_flo_n) else "Non atteint"
+
+        # Estimation Récolte (Colonne G & H)
+        if pd.notna(besoin_rec_n) and besoin_rec_n > 0 and pd.notna(q_val) and q_val > 0:
+            mr = int(round(besoin_rec_n / q_val))
             dt_r_est = semis_vn + datetime.timedelta(days=mr)
             label_carte = dt_r_est.strftime("%d/%m")
-            if dt_r_est > d_cible_ref:
+            if (pd.notna(r_val) and r_val < besoin_rec_n) or (dt_r_est > d_cible_ref):
                 date_r_est = f"Non atteint ({dt_r_est.strftime('%d/%m/%Y')})"
                 dur_r_est = mr
                 atteint = False
@@ -733,7 +749,7 @@ else:
             "Code INSEE": code_dep,
             "Département": nom_dep,
             f"Date {lbl_flo_n.lower()} estimée": date_f_est,
-            f"Durée {lbl_flo_n.lower()} (j)": mf if mf else np.nan,
+            f"Durée {lbl_flo_n.lower()} (j)": mf,
             "Date récolte estimée": date_r_est,
             "Durée récolte (j)": dur_r_est,
             "Atteint": atteint,

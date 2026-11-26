@@ -340,12 +340,48 @@ if st.session_state.outil_actif == "potentiel":
     k1.metric(f"Moyenne pluriannuelle — Cumul ({dep_t1})", f"{moy_somme:,.1f} °C/j".replace(",", " "))
     k2.metric("Moyenne journalière", f"{moy_jour:.2f} °C/j")
 
-    st.dataframe(
-        df_hist.style.format({"Somme (°C/j)": "{:.1f}", "Moyenne journalière (°C/j)": "{:.2f}"})
-                     .map(color_somme_thermique, subset=["Somme (°C/j)"]),
-        use_container_width=True,
-        hide_index=True
-    )
+    col_hist_tab, col_hist_chart = st.columns([1.05, 1.15])
+    with col_hist_tab:
+        st.dataframe(
+            df_hist.style.format({"Somme (°C/j)": "{:.1f}", "Moyenne journalière (°C/j)": "{:.2f}"})
+                         .map(color_somme_thermique, subset=["Somme (°C/j)"]),
+            use_container_width=True,
+            hide_index=True,
+            height=360
+        )
+    with col_hist_chart:
+        y_max = max(df_hist["Somme (°C/j)"].max() * 1.18, 500) if not df_hist.empty else 2000
+        labels_bar = df_hist["Somme (°C/j)"].map(lambda v: f"{v:,.1f}".replace(",", " ").replace(".", ","))
+        fig_hist = go.Figure()
+        fig_hist.add_trace(go.Bar(
+            x=df_hist["Année"],
+            y=df_hist["Somme (°C/j)"],
+            text=labels_bar,
+            textposition="outside",
+            textfont=dict(size=11, color="#1F2937"),
+            marker_color="#2E5E2E",
+            hovertemplate="<b>Année %{x}</b><br>Somme : %{y:,.1f} °C/j<extra></extra>"
+        ))
+        fig_hist.add_annotation(
+            text="Source LIDEA = outil interne",
+            xref="paper", yref="paper",
+            x=0.99, y=0.01,
+            xanchor="right", yanchor="bottom",
+            showarrow=False,
+            font=dict(size=9, color="#6B7280")
+        )
+        fig_hist.update_layout(
+            title=f"Somme des températures (°C/j) par année — {dep_t1} ({espece_t1})<br><sup>Semis : {semis_t1.strftime('%d/%m')}  •  Récolte : {recolte_t1.strftime('%d/%m')}</sup>",
+            xaxis_title="Année",
+            yaxis_title="Somme (°C/j)",
+            yaxis=dict(range=[0, y_max], gridcolor="#E5E7EB"),
+            xaxis=dict(type="category"),
+            margin={"r": 10, "t": 60, "l": 10, "b": 35},
+            height=360,
+            paper_bgcolor="#FFFFFF",
+            plot_bgcolor="#FFFFFF"
+        )
+        st.plotly_chart(fig_hist, use_container_width=True, config=plotly_config)
 
     st.markdown('<div class="section-title">2. Cumuls et analyse thermique comparative des 96 départements</div>', unsafe_allow_html=True)
     d1, d2, d3, d4 = st.columns(4)

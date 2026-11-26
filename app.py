@@ -3,13 +3,101 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import datetime
+import os
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
-    page_title="Calculateur Potentiel Thermique & Positionnement Variétal",
+    page_title="Lidea | Calculateur Potentiel Thermique & Positionnement Variétal",
     page_icon="🌽",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
+
+# --- DESIGN & CODE COULEUR LIDEA (CSS PERSONNALISÉ) ---
+st.markdown("""
+<style>
+    /* Couleur de fond générale douce */
+    .stApp {
+        background-color: #F8FAF7;
+    }
+    /* Bannière d'en-tête */
+    .lidea-banner {
+        background: linear-gradient(90deg, #2E5E2E 0%, #4E8B3B 100%);
+        padding: 1.2rem 1.8rem;
+        border-radius: 12px;
+        color: white;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 12px rgba(46, 94, 46, 0.15);
+    }
+    .lidea-banner h1 {
+        color: white !important;
+        font-size: 1.7rem !important;
+        margin: 0 !important;
+        font-weight: 700 !important;
+    }
+    .lidea-banner p {
+        color: #E2EFDA !important;
+        margin: 0.3rem 0 0 0 !important;
+        font-size: 0.95rem !important;
+    }
+    /* Cartes d'indicateurs (Metrics) */
+    div[data-testid="stMetric"] {
+        background-color: #FFFFFF;
+        border-left: 5px solid #5B9A32;
+        border-radius: 8px;
+        padding: 14px 18px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    }
+    div[data-testid="stMetricLabel"] {
+        color: #4A5568 !important;
+        font-weight: 600 !important;
+        font-size: 0.85rem !important;
+    }
+    div[data-testid="stMetricValue"] {
+        color: #2E5E2E !important;
+        font-weight: 700 !important;
+    }
+    /* Onglets (Tabs) */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: #EBF2E7;
+        padding: 6px;
+        border-radius: 10px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 8px;
+        padding: 10px 20px;
+        font-weight: 600;
+        color: #2E5E2E;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #2E5E2E !important;
+        color: white !important;
+    }
+    /* Titres de sections */
+    .section-title {
+        color: #2E5E2E;
+        border-bottom: 2px solid #76B82A;
+        padding-bottom: 6px;
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+        font-weight: 700;
+        font-size: 1.25rem;
+    }
+    /* Boutons */
+    .stButton > button {
+        background-color: #2E5E2E;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+    }
+    .stButton > button:hover {
+        background-color: #4E8B3B;
+        color: white;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 SHEET_ID = "11tZCCjazkhdk-E_kr8DvE5LicmsL5719U3fdZilJd-0"
 GID_BDD = "893102045"
@@ -57,14 +145,65 @@ def load_regions():
     df["Code"] = df["Code"].astype(str).str.strip().str.zfill(2)
     return df
 
+# --- FONCTIONS DE COULEURS CONDITIONNELLES ---
+def color_somme_thermique(val):
+    if pd.isna(val):
+        return ""
+    if val < 1200:
+        return "background-color: #FADBD8; color: #922B21; font-weight: 600;"
+    elif val < 1500:
+        return "background-color: #FDEBD0; color: #9C640C; font-weight: 600;"
+    else:
+        return "background-color: #D4EFDF; color: #1E8449; font-weight: 600;"
+
+def color_ecart(val):
+    if pd.isna(val):
+        return ""
+    if val >= 0:
+        return "color: #1E8449; font-weight: 600;"
+    return "color: #922B21; font-weight: 600;"
+
+def color_statut_var(val):
+    if isinstance(val, str) and "Non atteint" in val:
+        return "background-color: #FADBD8; color: #922B21; font-weight: 600;"
+    elif isinstance(val, str) and "Non renseigné" in val:
+        return "color: #7F8C8D;"
+    elif isinstance(val, str) and ("/" in val or "j" in val):
+        return "background-color: #E8F5E9; color: #1E8449; font-weight: 600;"
+    return ""
+
+# --- RECHERCHE DU LOGO ---
+logo_path = None
+for fname in ["logo_lidea.png", "logo_lidea.jpg", "logo_lidea.jpeg"]:
+    if os.path.exists(fname):
+        logo_path = fname
+        break
+
 # --- BARRE LATÉRALE ---
 with st.sidebar:
-    st.title("🌽 Pilotage Variétal")
-    st.caption("Outil d'aide à la décision - Maïs & Sorgho")
+    if logo_path:
+        st.image(logo_path, use_container_width=True)
+    else:
+        st.markdown("## 🌱 **LIDEA**")
+    st.caption("Outil d'aide à la décision — Maïs & Sorgho")
+    st.divider()
     if st.button("🔄 Actualiser les données Sheets", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
-    st.info("Les modifications faites dans Google Sheets (`BDD` et `BDD variétés`) sont prises en compte toutes les heures, ou immédiatement via le bouton ci-dessus.")
+    st.info("Les ajouts dans Google Sheets (`BDD` et `BDD variétés`) sont actualisés automatiquement toutes les heures, ou immédiatement via le bouton ci-dessus.")
+
+# --- EN-TÊTE PRINCIPAL ---
+col_head_txt, col_head_logo = st.columns([4, 1])
+with col_head_txt:
+    st.markdown("""
+    <div class="lidea-banner">
+        <h1>🌽 Calculateur Potentiel Thermique & Positionnement Variétal</h1>
+        <p>Pilotage des choix variétaux Maïs & Sorgho • Historique climatique 2018 – 2026 sur 96 départements</p>
+    </div>
+    """, unsafe_allow_html=True)
+with col_head_logo:
+    if logo_path:
+        st.image(logo_path, use_container_width=True)
 
 # Chargement initial
 bdd = load_bdd()
@@ -81,7 +220,7 @@ tab1, tab2 = st.tabs(["🌡️ Potentiel Thermique Départemental", "🌱 Positi
 # ONGLET 1 : POTENTIEL THERMIQUE DÉPARTEMENTAL
 # ==============================================================================
 with tab1:
-    st.header("1. Historique thermique pluriannuel local (2018 - 2026)")
+    st.markdown('<div class="section-title">1. Historique thermique pluriannuel local (2018 - 2026)</div>', unsafe_allow_html=True)
     c1, c2, c3, c4 = st.columns(4)
     espece_t1 = c1.selectbox("Espèce", ["Maïs", "Sorgho"], key="t1_esp")
     dep_t1 = c2.selectbox(
@@ -95,7 +234,7 @@ with tab1:
 
     col_uc_t1 = "Somme d°C/j Sorgho (base 8-34)" if espece_t1 == "Sorgho" else "Somme d°C/j"
     base_txt_t1 = "Base 8-34°C" if espece_t1 == "Sorgho" else "Base 6-30°C"
-    st.caption(f"Base de calcul appliquée : **{base_txt_t1}**")
+    st.caption(f"📌 Base de calcul appliquée : **{base_txt_t1}**")
 
     mj_s1, mj_r1 = semis_t1.strftime("%m-%d"), recolte_t1.strftime("%m-%d")
     sub_t1 = bdd[(bdd["Département"] == dep_t1) & (bdd["MoisJour"] >= mj_s1) & (bdd["MoisJour"] <= mj_r1)]
@@ -117,12 +256,17 @@ with tab1:
     moy_jour = df_hist["Moyenne journalière (°C/j)"].mean()
 
     k1, k2 = st.columns(2)
-    k1.metric(f"Moyenne pluriannuelle - Cumul ({dep_t1})", f"{moy_somme:,.1f} °C/j".replace(",", " "))
+    k1.metric(f"Moyenne pluriannuelle — Cumul ({dep_t1})", f"{moy_somme:,.1f} °C/j".replace(",", " "))
     k2.metric("Moyenne journalière", f"{moy_jour:.2f} °C/j")
-    st.dataframe(df_hist, use_container_width=True, hide_index=True)
 
-    st.divider()
-    st.header("2. Cumuls et analyse thermique comparative des 96 départements")
+    st.dataframe(
+        df_hist.style.format({"Somme (°C/j)": "{:.1f}", "Moyenne journalière (°C/j)": "{:.2f}"})
+                     .map(color_somme_thermique, subset=["Somme (°C/j)"]),
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.markdown('<div class="section-title">2. Cumuls et analyse thermique comparative des 96 départements</div>', unsafe_allow_html=True)
     d1, d2, d3, d4 = st.columns(4)
     espece_t2 = d1.selectbox("Espèce", ["Maïs", "Sorgho"], key="t2_esp")
     annee_t2 = d2.selectbox("Année à analyser", annees_dispo, index=len(annees_dispo) - 1, key="t2_an")
@@ -151,11 +295,19 @@ with tab1:
         m3.metric("Département le + Frais", row_min["Département"], f"{row_min['Somme (°C/j)']:,.1f} °C/j".replace(",", " "))
         m4.metric("Amplitude Max - Min", f"{(row_max['Somme'] - row_min['Somme']):,.1f} °C/j".replace(",", " "))
 
-    col_tab, col_map = st.columns([1.2, 1])
+    st.caption("Légende : 🔴 Rouge (< 1 200 °C/j)  •  🟠 Orange (1 200 - 1 500 °C/j)  •  🟢 Vert (≥ 1 500 °C/j)")
+
+    col_tab, col_map = st.columns([1.25, 1])
     with col_tab:
+        df_nat_disp = nat_df[["Code INSEE département", "Département", "Moyenne journalière (°C/j)", "Somme (°C/j)", "Écart vs Moyenne France (°C/j)"]]
         st.dataframe(
-            nat_df[["Code INSEE département", "Département", "Moyenne journalière (°C/j)", "Somme (°C/j)", "Écart vs Moyenne France (°C/j)"]],
-            use_container_width=True, height=500, hide_index=True
+            df_nat_disp.style.format({
+                "Moyenne journalière (°C/j)": "{:.2f}",
+                "Somme (°C/j)": "{:.1f}",
+                "Écart vs Moyenne France (°C/j)": "{:+.1f}"
+            }).map(color_somme_thermique, subset=["Somme (°C/j)"])
+              .map(color_ecart, subset=["Écart vs Moyenne France (°C/j)"]),
+            use_container_width=True, height=520, hide_index=True
         )
     with col_map:
         if not nat_df.empty:
@@ -166,18 +318,23 @@ with tab1:
                 featureidkey="properties.code",
                 color="Somme (°C/j)",
                 hover_name="Département",
-                color_continuous_scale=["#d73027", "#fee08b", "#1a9850"],
+                color_continuous_scale=["#d73027", "#fee08b", "#2E5E2E"],
                 title=f"Carte thermique {annee_t2} ({espece_t2})"
             )
             fig.update_geos(fitbounds="locations", visible=False)
-            fig.update_layout(margin={"r": 0, "t": 40, "l": 0, "b": 0}, height=500)
+            fig.update_layout(
+                margin={"r": 0, "t": 40, "l": 0, "b": 0},
+                height=520,
+                paper_bgcolor="rgba(0,0,0,0)",
+                geo_bgcolor="rgba(0,0,0,0)"
+            )
             st.plotly_chart(fig, use_container_width=True)
 
 # ==============================================================================
 # ONGLET 2 : POSITIONNEMENT VARIÉTAL
 # ==============================================================================
 with tab2:
-    st.header("Paramètres de la variété")
+    st.markdown('<div class="section-title">Paramètres de sélection variétale</div>', unsafe_allow_html=True)
     p1, p2, p3, p4 = st.columns(4)
     dep_v = p1.selectbox(
         "Département (Analyse locale)",
@@ -231,7 +388,7 @@ with tab2:
     b2.metric("Besoin Récolte", f"{besoin_rec:.0f} °C/j" if pd.notna(besoin_rec) else "Non renseigné")
     b3.metric("Base thermique", "Base 8-34°C" if esp_v.lower() == "sorgho" else "Base 6-30°C")
 
-    st.subheader(f"1. Cycle phénologique local — {dep_v} ({periode[0]} - {periode[1]})")
+    st.markdown(f'<div class="section-title">1. Cycle phénologique local — {dep_v} ({periode[0]} - {periode[1]})</div>', unsafe_allow_html=True)
     bdd_loc = bdd[(bdd["Département"] == dep_v) & (bdd["Année"] >= periode[0]) & (bdd["Année"] <= periode[1])]
 
     loc_rows = []
@@ -245,7 +402,6 @@ with tab2:
         df_y = bdd_loc[(bdd_loc["Année"] == an) & (bdd_loc["Date"] >= pd.Timestamp(d_sem))].copy()
         df_y["Cumul"] = df_y[col_uc_v].cumsum()
 
-        # Floraison
         if pd.isna(besoin_flo):
             str_flo, str_d_flo = "Non renseigné", "Non renseigné"
         else:
@@ -258,7 +414,6 @@ with tab2:
                 str_flo, str_d_flo = dt_f.strftime("%d/%m/%Y"), f"{nb_f} j"
                 durees_flo.append(nb_f)
 
-        # Récolte
         if pd.isna(besoin_rec):
             str_rec, str_d_rec = "Non renseigné", "Non renseigné"
         else:
@@ -286,7 +441,6 @@ with tab2:
             "Semis-récolte": str_d_rec
         })
 
-    # Indicateurs moyens
     moy_f = round(np.mean(durees_flo)) if durees_flo else None
     moy_r = round(np.mean(durees_rec)) if durees_rec else None
     k_v1, k_v2, k_v3 = st.columns(3)
@@ -303,11 +457,16 @@ with tab2:
         k_v2.metric("Estimation Récolte", "Maturité non garantie")
 
     k_v3.metric("Taux de réussite (avant date cible)", f"{reussites} / {nb_campagnes} campagnes")
-    st.dataframe(pd.DataFrame(loc_rows), use_container_width=True, hide_index=True)
 
-    # Vision nationale
-    st.divider()
-    st.subheader(f"2. Vision nationale de la variété {nom_var} (96 départements)")
+    df_loc_res = pd.DataFrame(loc_rows)
+    cols_statut = [f"Date {lbl_flo.lower()}", f"Semis-{lbl_flo.lower()}", "Date récolte", "Semis-récolte"]
+    st.dataframe(
+        df_loc_res.style.map(color_statut_var, subset=cols_statut),
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.markdown(f'<div class="section-title">2. Vision nationale de la variété {nom_var} (96 départements)</div>', unsafe_allow_html=True)
     bdd_nat = bdd[(bdd["Année"] >= periode[0]) & (bdd["Année"] <= periode[1]) & (bdd["MoisJour"] >= semis_v.strftime("%m-%d"))]
 
     nat_var_rows = []
@@ -333,11 +492,11 @@ with tab2:
         if mr:
             dt_r_est = semis_v + datetime.timedelta(days=mr)
             if dt_r_est > recolte_cible_v:
-                date_r_est, dur_r_est, statut_map = "Non atteint", None, 0
+                date_r_est, dur_r_est = "Non atteint", np.nan
             else:
-                date_r_est, dur_r_est, statut_map = dt_r_est.strftime("%d/%m/%Y"), mr, mr
+                date_r_est, dur_r_est = dt_r_est.strftime("%d/%m/%Y"), mr
         else:
-            date_r_est, dur_r_est, statut_map = "Non atteint", None, 0
+            date_r_est, dur_r_est = "Non atteint", np.nan
 
         nat_var_rows.append({
             "Code INSEE": code_dep,
@@ -345,14 +504,19 @@ with tab2:
             f"Date {lbl_flo.lower()} estimée": date_f_est,
             f"Durée {lbl_flo.lower()} (j)": mf if mf else np.nan,
             "Date récolte estimée": date_r_est,
-            "Durée récolte (j)": dur_r_est if dur_r_est else np.nan,
-            "Récoltable (j)": statut_map
+            "Durée récolte (j)": dur_r_est
         })
 
     df_nat_var = pd.DataFrame(nat_var_rows)
-    col_vt, col_vm = st.columns([1.2, 1])
+    col_vt, col_vm = st.columns([1.25, 1])
     with col_vt:
-        st.dataframe(df_nat_var.drop(columns=["Récoltable (j)"]), use_container_width=True, height=500, hide_index=True)
+        st.dataframe(
+            df_nat_var.style.format({
+                f"Durée {lbl_flo.lower()} (j)": "{:.0f}",
+                "Durée récolte (j)": "{:.0f}"
+            }, na_rep="—").map(color_statut_var, subset=[f"Date {lbl_flo.lower()} estimée", "Date récolte estimée"]),
+            use_container_width=True, height=520, hide_index=True
+        )
     with col_vm:
         fig_v = px.choropleth(
             df_nat_var,
@@ -362,9 +526,14 @@ with tab2:
             color="Durée récolte (j)",
             hover_name="Département",
             hover_data=["Date récolte estimée"],
-            color_continuous_scale="YlGn_r",
+            color_continuous_scale=["#2E5E2E", "#76B82A", "#fee08b"],
             title=f"Durée semis-récolte estimée (jours) — {nom_var}"
         )
         fig_v.update_geos(fitbounds="locations", visible=False)
-        fig_v.update_layout(margin={"r": 0, "t": 40, "l": 0, "b": 0}, height=500)
+        fig_v.update_layout(
+            margin={"r": 0, "t": 40, "l": 0, "b": 0},
+            height=520,
+            paper_bgcolor="rgba(0,0,0,0)",
+            geo_bgcolor="rgba(0,0,0,0)"
+        )
         st.plotly_chart(fig_v, use_container_width=True)

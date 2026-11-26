@@ -418,9 +418,9 @@ with tab1:
             )
             fig.update_geos(fitbounds="locations", visible=False)
             fig.update_layout(
-                title=f"Carte thermique {annee_t2} ({espece_t2}) — °C/j",
-                margin={"r": 0, "t": 40, "l": 0, "b": 45},
-                height=520,
+                title=f"Carte thermique {annee_t2} ({espece_t2}) — °C/j<br><sup>Semis : {semis_t2.strftime('%d/%m/%Y')}  •  Récolte : {recolte_t2.strftime('%d/%m/%Y')}</sup>",
+                margin={"r": 0, "t": 55, "l": 0, "b": 45},
+                height=535,
                 paper_bgcolor="rgba(0,0,0,0)",
                 geo_bgcolor="rgba(0,0,0,0)"
             )
@@ -766,10 +766,10 @@ with tab2:
         )
         fig_v.update_geos(fitbounds="locations", visible=False)
         fig_v.update_layout(
-            title=f"Date de récolte estimée (JJ/MM) — {nom_vn}",
-            margin={"r": 0, "t": 40, "l": 0, "b": 45},
-            height=520,
+            title=f"Date de récolte estimée (JJ/MM) — {nom_vn}<br><sup>Semis : {semis_vn.strftime('%d/%m/%Y')}  •  Récolte cible : {recolte_cible_vn.strftime('%d/%m/%Y')}  •  Période : {periode_vn[0]}-{periode_vn[1]}</sup>",
+            margin={"r": 0, "t": 55, "l": 0, "b": 45},
+            height=535,
             paper_bgcolor="rgba(0,0,0,0)",
             geo_bgcolor="rgba(0,0,0,0)"
         )
-        st.plotly_chart(fig_v, use_container_width=True, config=plotly_config)
+        st.plotly_chart(fig_v, use_container_width=True, config=plotly_config) 
